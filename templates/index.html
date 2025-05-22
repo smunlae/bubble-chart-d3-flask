@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gift Bubbles</title>
   <style>
-    body { margin: 0; font-family: sans-serif; background: #333; color: #fff; }
+    body { margin: 0; font-family: sans-serif; background: #111; color: #fff; }
     #chart { display: block; margin: auto; }
     .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; dominant-baseline: middle; }
   </style>
@@ -24,6 +24,35 @@
       const data = await loadData();
       const width = 800, height = 600;
       const svg = d3.select('#chart');
+
+      // Добавляем <defs> с паттернами для изображений пузырей
+      const defs = svg.append('defs');
+      defs.append('pattern')
+        .attr('id', 'pattern-green')
+        .attr('patternUnits', 'objectBoundingBox')
+        .attr('width', 1)
+        .attr('height', 1)
+        .append('image')
+          .attr('href', 'static/green_bubble.png')
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .attr('width', 200)
+          .attr('height', 200)
+          .attr('x', 0)
+          .attr('y', 0);
+      defs.append('pattern')
+        .attr('id', 'pattern-red')
+        .attr('patternUnits', 'objectBoundingBox')
+        .attr('width', 1)
+        .attr('height', 1)
+        .append('image')
+          .attr('href', 'static/red_bubble.png')
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .attr('width', 200)
+          .attr('height', 200)
+          .attr('x', 0)
+          .attr('y', 0);
+
+      // Pack layout
       const root = d3.pack().size([width, height]).padding(8)(
         d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
       );
@@ -31,29 +60,31 @@
       const node = svg.selectAll('g').data(root.leaves()).join('g')
         .attr('transform', d => `translate(${d.x},${d.y})`);
 
-      node.append('circle').attr('r', d => d.r).attr('fill', d => d.data.change >= 0 ? '#3cb371' : '#dc143c').attr('opacity', 0.8);
+      // Рисуем окружности с фоном из изображения (паттерн)
+      node.append('circle')
+        .attr('r', d => d.r)
+        .attr('fill', d => d.data.change >= 0 ? 'url(#pattern-green)' : 'url(#pattern-red)')
+        .attr('stroke', d => d.data.change >= 0 ? '#3cb371' : '#dc143c')
+        .attr('stroke-width', 2);
 
-      // Добавляем текст и динамически подбираем размер шрифта
+      // Текст внутри пузыря
       node.append('text').attr('class', 'bubble-text')
         .each(function(d) {
           const group = d3.select(this);
           const lines = [d.data.name, d.data.change.toFixed(2) + '%'];
-          let fontSize = d.r * 0.3; // начальный
+          let fontSize = d.r * 0.3;
           group.style('font-size', fontSize + 'px');
           group.selectAll('tspan').data(lines).join('tspan')
             .attr('x', 0)
             .attr('dy', (ln, i) => i * 1.2 + 'em')
             .text(ln => ln);
 
-          // Измеряем bbox текста
           let bbox = group.node().getBBox();
-          // Пока текст выходит за круг, уменьшаем fontSize
           while ((bbox.width > d.r * 1.8 || bbox.height > d.r * 1.8) && fontSize > 6) {
             fontSize -= 1;
             group.style('font-size', fontSize + 'px');
             bbox = group.node().getBBox();
           }
-          // После уменьшения центрируем вертикально
           const shiftY = -((bbox.height - parseFloat(group.style('font-size'))) / 2);
           group.attr('transform', `translate(0, ${shiftY})`);
         });
