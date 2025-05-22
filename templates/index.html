@@ -25,6 +25,9 @@
       const width = 800, height = 600;
       const svg = d3.select('#chart');
 
+      // Общий defs для clipPath
+      const defs = svg.append('defs');
+
       const root = d3.pack().size([width, height]).padding(8)(
         d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
       );
@@ -32,24 +35,30 @@
       const nodes = svg.selectAll('g').data(root.leaves()).join('g')
         .attr('transform', d => `translate(${d.x},${d.y})`);
 
-      // Для каждого узла: сначала картинка заливки, потом контур
-      nodes.each(function(d) {
+      nodes.each(function(d, i) {
         const group = d3.select(this);
-        const size = d.r * 2;
+        const r = d.r;
+        const size = r * 2 + 4; // немного больше радиуса
         const url = d.data.change >= 0 ? '/static/green_bubble.png' : '/static/red_bubble.png';
+        const clipId = `clip-${i}`;
 
-        // Изображение
+        // Создаем clipPath с кругом
+        defs.append('clipPath').attr('id', clipId)
+          .append('circle').attr('r', r);
+
+        // Изображение с обрезкой по clipPath
         group.append('image')
           .attr('href', url)
-          .attr('x', -d.r)
-          .attr('y', -d.r)
+          .attr('x', -size/2)
+          .attr('y', -size/2)
           .attr('width', size)
           .attr('height', size)
-          .attr('preserveAspectRatio', 'xMidYMid slice');
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .attr('clip-path', `url(#${clipId})`);
 
-        // Обводка
+        // Обводка круга
         group.append('circle')
-          .attr('r', d.r)
+          .attr('r', r)
           .attr('fill', 'none')
           .attr('stroke', d.data.change >= 0 ? '#3cb371' : '#dc143c')
           .attr('stroke-width', 2);
