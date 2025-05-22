@@ -7,7 +7,7 @@
   <style>
     body { margin: 0; font-family: sans-serif; background: #333; color: #fff; }
     #chart { display: block; margin: auto; }
-    .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; }
+    .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; dominant-baseline: middle; }
   </style>
 </head>
 <body>
@@ -15,56 +15,50 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script>
     async function loadData() {
-      const response = await fetch('/data');
-      const json = await response.json();
+      const resp = await fetch('/data');
+      const json = await resp.json();
       return Object.entries(json).map(([name, change]) => ({ name, change }));
     }
 
     async function drawChart() {
       const data = await loadData();
-      const width = 800;
-      const height = 600;
+      const width = 800, height = 600;
       const svg = d3.select('#chart');
+      const root = d3.pack().size([width, height]).padding(8)(
+        d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
+      );
 
-      // Pack layout: увеличиваем sum для масштабирования радиусов
-      const scaleFactor = 2.25; // примерно 1.5x радиус
-      const root = d3.pack()
-        .size([width, height])
-        .padding(8)
-        (d3.hierarchy({ children: data })
-          .sum(d => Math.abs(d.change) * scaleFactor)
-        );
+      const node = svg.selectAll('g').data(root.leaves()).join('g')
+        .attr('transform', d => `translate(${d.x},${d.y})`);
 
-      const color = d => d.data.change >= 0 ? '#3cb371' : '#dc143c';
+      node.append('circle').attr('r', d => d.r).attr('fill', d => d.data.change >= 0 ? '#3cb371' : '#dc143c').attr('opacity', 0.8);
 
-      const node = svg.selectAll('g')
-        .data(root.leaves())
-        .join('g')
-          .attr('transform', d => `translate(${d.x},${d.y})`);
-
-      // Рисуем окружности без дополнительного масштабирования
-      node.append('circle')
-        .attr('r', d => d.r)
-        .attr('fill', color)
-        .attr('opacity', 0.8);
-
-      // Текст внутри пузыря
-      node.append('text')
-        .attr('class', 'bubble-text')
+      // Добавляем текст и динамически подбираем размер шрифта
+      node.append('text').attr('class', 'bubble-text')
         .each(function(d) {
-          const fontSize = Math.max(10, d.r * 0.2);
-          d3.select(this).style('font-size', fontSize + 'px');
-        })
-        .selectAll('tspan')
-        .data(d => [d.data.name, d.data.change.toFixed(2) + '%'])
-        .join('tspan')
-          .attr('x', 0)
-          .attr('y', (_, i, nodes) => {
-            const lineHeight = parseFloat(d3.select(nodes[i].parentNode).style('font-size')) * 1.2;
-            return (i - 0.5) * lineHeight;
-          })
-          .text(d => d);
+          const group = d3.select(this);
+          const lines = [d.data.name, d.data.change.toFixed(2) + '%'];
+          let fontSize = d.r * 0.3; // начальный
+          group.style('font-size', fontSize + 'px');
+          group.selectAll('tspan').data(lines).join('tspan')
+            .attr('x', 0)
+            .attr('dy', (ln, i) => i * 1.2 + 'em')
+            .text(ln => ln);
+
+          // Измеряем bbox текста
+          let bbox = group.node().getBBox();
+          // Пока текст выходит за круг, уменьшаем fontSize
+          while ((bbox.width > d.r * 1.8 || bbox.height > d.r * 1.8) && fontSize > 6) {
+            fontSize -= 1;
+            group.style('font-size', fontSize + 'px');
+            bbox = group.node().getBBox();
+          }
+          // После уменьшения центрируем вертикально
+          const shiftY = -((bbox.height - parseFloat(group.style('font-size'))) / 2);
+          group.attr('transform', `translate(0, ${shiftY})`);
+        });
     }
+
     drawChart();
   </script>
 </body>
