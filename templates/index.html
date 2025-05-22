@@ -25,50 +25,38 @@
       const width = 800, height = 600;
       const svg = d3.select('#chart');
 
-      // Добавляем <defs> с паттернами для изображений пузырей
-      const defs = svg.append('defs');
-      defs.append('pattern')
-        .attr('id', 'pattern-green')
-        .attr('patternUnits', 'objectBoundingBox')
-        .attr('width', 1)
-        .attr('height', 1)
-        .append('image')
-          .attr('href', 'static/green_bubble.png')
-          .attr('preserveAspectRatio', 'xMidYMid slice')
-          .attr('width', 200)
-          .attr('height', 200)
-          .attr('x', 0)
-          .attr('y', 0);
-      defs.append('pattern')
-        .attr('id', 'pattern-red')
-        .attr('patternUnits', 'objectBoundingBox')
-        .attr('width', 1)
-        .attr('height', 1)
-        .append('image')
-          .attr('href', 'static/red_bubble.png')
-          .attr('preserveAspectRatio', 'xMidYMid slice')
-          .attr('width', 200)
-          .attr('height', 200)
-          .attr('x', 0)
-          .attr('y', 0);
-
-      // Pack layout
       const root = d3.pack().size([width, height]).padding(8)(
         d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
       );
 
-      const node = svg.selectAll('g').data(root.leaves()).join('g')
+      const nodes = svg.selectAll('g').data(root.leaves()).join('g')
         .attr('transform', d => `translate(${d.x},${d.y})`);
 
-      // Рисуем окружности с фоном из изображения (паттерн)
-      node.append('circle')
-        .attr('r', d => d.r)
-        .attr('fill', d => d.data.change >= 0 ? 'url(#pattern-green)' : 'url(#pattern-red)')
-        .attr('stroke', d => d.data.change >= 0 ? '#3cb371' : '#dc143c')
-        .attr('stroke-width', 2);
+      // Для каждого узла: сначала картинка заливки, потом контур
+      nodes.each(function(d) {
+        const group = d3.select(this);
+        const size = d.r * 2;
+        const url = d.data.change >= 0 ? '/static/green_bubble.png' : '/static/red_bubble.png';
+
+        // Изображение
+        group.append('image')
+          .attr('href', url)
+          .attr('x', -d.r)
+          .attr('y', -d.r)
+          .attr('width', size)
+          .attr('height', size)
+          .attr('preserveAspectRatio', 'xMidYMid slice');
+
+        // Обводка
+        group.append('circle')
+          .attr('r', d.r)
+          .attr('fill', 'none')
+          .attr('stroke', d.data.change >= 0 ? '#3cb371' : '#dc143c')
+          .attr('stroke-width', 2);
+      });
 
       // Текст внутри пузыря
-      node.append('text').attr('class', 'bubble-text')
+      nodes.append('text').attr('class', 'bubble-text')
         .each(function(d) {
           const group = d3.select(this);
           const lines = [d.data.name, d.data.change.toFixed(2) + '%'];
