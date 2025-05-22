@@ -6,12 +6,11 @@
   <title>Gift Bubbles</title>
   <style>
     body { margin: 0; font-family: sans-serif; background: #333; color: #fff; }
-    #chart { display: block; margin: auto; /* центрирование */ }
+    #chart { display: block; margin: auto; }
     .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; }
   </style>
 </head>
 <body>
-  <!-- SVG адаптивный по ширине, высота рассчитывается через viewBox -->
   <svg id="chart" viewBox="0 0 800 600" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"></svg>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script>
@@ -27,11 +26,13 @@
       const height = 600;
       const svg = d3.select('#chart');
 
-      // pack layout
+      // Pack layout: увеличиваем sum для масштабирования радиусов
+      const scaleFactor = 2.25; // примерно 1.5x радиус
       const root = d3.pack()
         .size([width, height])
-        .padding(8)(d3.hierarchy({ children: data })
-          .sum(d => Math.abs(d.change))
+        .padding(8)
+        (d3.hierarchy({ children: data })
+          .sum(d => Math.abs(d.change) * scaleFactor)
         );
 
       const color = d => d.data.change >= 0 ? '#3cb371' : '#dc143c';
@@ -41,13 +42,13 @@
         .join('g')
           .attr('transform', d => `translate(${d.x},${d.y})`);
 
-      // Увеличим размер пузырей, умножая радиус
+      // Рисуем окружности без дополнительного масштабирования
       node.append('circle')
-        .attr('r', d => d.r * 1.5)
+        .attr('r', d => d.r)
         .attr('fill', color)
         .attr('opacity', 0.8);
 
-      // Текст внутри пузыря: адаптивный размер шрифта по радиусу
+      // Текст внутри пузыря
       node.append('text')
         .attr('class', 'bubble-text')
         .each(function(d) {
@@ -60,7 +61,6 @@
           .attr('x', 0)
           .attr('y', (_, i, nodes) => {
             const lineHeight = parseFloat(d3.select(nodes[i].parentNode).style('font-size')) * 1.2;
-            // центрируем текст по вертикали
             return (i - 0.5) * lineHeight;
           })
           .text(d => d);
