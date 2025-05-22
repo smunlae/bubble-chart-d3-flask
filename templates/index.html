@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gift Bubbles</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #333; color: #fff; }
+    svg { display: block; margin: auto; }
+    .bubble-text { pointer-events: none; font-size: 12px; text-anchor: middle; fill: #fff; }
+  </style>
+</head>
+<body>
+  <svg id="chart" width="800" height="600"></svg>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    async function loadData() {
+      const response = await fetch('/data');
+      const json = await response.json();
+      return Object.entries(json).map(([name, change]) => ({ name, change }));
+    }
+    async function drawChart() {
+      const data = await loadData();
+      const width = 800;
+      const height = 600;
+      const svg = d3.select('#chart');
+      const root = d3.pack()
+        .size([width, height])
+        .padding(8)(d3.hierarchy({ children: data })
+          .sum(d => Math.abs(d.change))
+        );
+      const color = d => d.data.change >= 0 ? '#3cb371' : '#dc143c';
+      const node = svg.selectAll('g')
+        .data(root.leaves())
+        .join('g')
+          .attr('transform', d => `translate(${d.x},${d.y})`);
+      node.append('circle')
+        .attr('r', d => d.r)
+        .attr('fill', color)
+        .attr('opacity', 0.8);
+      node.append('text')
+        .attr('class', 'bubble-text')
+        .selectAll('tspan')
+        .data(d => [d.data.name, d.data.change.toFixed(2) + '%'])
+        .join('tspan')
+          .attr('x', 0)
+          .attr('y', (_, i) => i * 14 - 6)
+          .text(d => d);
+    }
+    drawChart();
+  </script>
+</body>
+</html>
