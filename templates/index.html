@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gift Bubbles</title>
   <style>
-    body { margin: 0; font-family: sans-serif; background: #111; color: #fff; }
-    #chart { display: block; margin: auto; }
+    body { margin: 0; font-family: sans-serif; background: #111; color: #fff; overflow: hidden; }
+    #chart { display: block; margin: auto; width: 100%; height: 100vh; }
     .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; dominant-baseline: middle; }
   </style>
 </head>
 <body>
-  <svg id="chart" viewBox="0 0 800 600" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"></svg>
+  <svg id="chart" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script>
     async function loadData() {
@@ -25,30 +25,38 @@
       const width = 800, height = 600;
       const svg = d3.select('#chart');
 
-      // Общий defs для clipPath
-      const defs = svg.append('defs');
+      // Добавляем группу для зума
+      const container = svg.append('g').attr('id', 'container');
+
+      // Зум и пан
+      svg.call(d3.zoom()
+        .scaleExtent([0.5, 5])
+        .on('zoom', ({transform}) => container.attr('transform', transform))
+      );
+
+      const defs = container.append('defs');
 
       const root = d3.pack().size([width, height]).padding(8)(
         d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
       );
 
-      const nodes = svg.selectAll('g').data(root.leaves()).join('g')
+      const nodes = container.selectAll('g.node').data(root.leaves()).join('g')
+        .attr('class', 'node')
         .attr('transform', d => `translate(${d.x},${d.y})`);
 
       nodes.each(function(d, i) {
         const group = d3.select(this);
         const r = d.r;
-        // Увеличиваем диаметр заливки на 7%
-        const oversize = 1.07;
+        // Пропорционально размеру пузыря
+        const strokeWidth = Math.max(0.7, r * 0.05);
+        const oversize = 1.35;
         const size = r * 2 * oversize;
         const url = d.data.change >= 0 ? '/static/green_bubble.png' : '/static/red_bubble.png';
         const clipId = `clip-${i}`;
 
-        // Создаем clipPath с кругом (радиус r)
         defs.append('clipPath').attr('id', clipId)
           .append('circle').attr('r', r);
 
-        // Изображение с обрезкой по clipPath и увеличенным размером
         group.append('image')
           .attr('href', url)
           .attr('x', -size / 2)
@@ -58,15 +66,13 @@
           .attr('preserveAspectRatio', 'xMidYMid slice')
           .attr('clip-path', `url(#${clipId})`);
 
-        // Обводка круга
         group.append('circle')
           .attr('r', r)
           .attr('fill', 'none')
           .attr('stroke', d.data.change >= 0 ? '#3cb371' : '#dc143c')
-          .attr('stroke-width', 2);
+          .attr('stroke-width', strokeWidth);
       });
 
-      // Текст внутри пузыря
       nodes.append('text').attr('class', 'bubble-text')
         .each(function(d) {
           const group = d3.select(this);
