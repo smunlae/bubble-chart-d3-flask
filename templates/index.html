@@ -38,19 +38,21 @@
       nodes.each(function(d, i) {
         const group = d3.select(this);
         const r = d.r;
-        const size = r * 2 + 4; // немного больше радиуса
+        // Увеличиваем диаметр заливки на 7%
+        const oversize = 1.07;
+        const size = r * 2 * oversize;
         const url = d.data.change >= 0 ? '/static/green_bubble.png' : '/static/red_bubble.png';
         const clipId = `clip-${i}`;
 
-        // Создаем clipPath с кругом
+        // Создаем clipPath с кругом (радиус r)
         defs.append('clipPath').attr('id', clipId)
           .append('circle').attr('r', r);
 
-        // Изображение с обрезкой по clipPath
+        // Изображение с обрезкой по clipPath и увеличенным размером
         group.append('image')
           .attr('href', url)
-          .attr('x', -size/2)
-          .attr('y', -size/2)
+          .attr('x', -size / 2)
+          .attr('y', -size / 2)
           .attr('width', size)
           .attr('height', size)
           .attr('preserveAspectRatio', 'xMidYMid slice')
