@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gift Bubbles</title>
   <style>
-    body { margin: 0; font-family: sans-serif; background: #111; color: #fff; overflow: hidden; }
-    #chart { display: block; margin: auto; width: 100%; height: 100vh; }
-    .bubble-text { pointer-events: none; text-anchor: middle; fill: #fff; dominant-baseline: middle; }
+    body { margin:0; background:#111; color:#fff; overflow:hidden; }
+    #chart { width:100%; height:100vh; display:block; }
+    .bubble-text { pointer-events:none; text-anchor:middle; fill:#fff; dominant-baseline:middle; }
   </style>
 </head>
 <body>
@@ -16,82 +16,66 @@
   <script>
     async function loadData() {
       const resp = await fetch('/data');
-      const json = await resp.json();
-      return Object.entries(json).map(([name, change]) => ({ name, change }));
+      const items = await resp.json();
+      // Ожидаем объекты {name, change:number, img_src}
+      return items;
     }
 
     async function drawChart() {
       const data = await loadData();
-      const width = 800, height = 600;
-      const svg = d3.select('#chart');
+      const svg = d3.select('#chart'),
+            width = 800, height = 600;
 
-      // Добавляем группу для зума
-      const container = svg.append('g').attr('id', 'container');
-
-      // Зум и пан
-      svg.call(d3.zoom()
-        .scaleExtent([0.5, 5])
+      // контейнер и зум
+      const container = svg.append('g');
+      svg.call(d3.zoom().scaleExtent([0.5,5])
         .on('zoom', ({transform}) => container.attr('transform', transform))
       );
 
       const defs = container.append('defs');
-
-      const root = d3.pack().size([width, height]).padding(8)(
-        d3.hierarchy({ children: data }).sum(d => Math.abs(d.change) * 2)
+      const root = d3.pack().size([width,height]).padding(8)(
+        d3.hierarchy({children:data}).sum(d => Math.abs(d.change)*2)
       );
 
-      const nodes = container.selectAll('g.node').data(root.leaves()).join('g')
-        .attr('class', 'node')
-        .attr('transform', d => `translate(${d.x},${d.y})`);
+      const nodes = container.selectAll('g.node')
+        .data(root.leaves()).join('g')
+          .attr('class','node')
+          .attr('transform', d=>`translate(${d.x},${d.y})`);
 
-      nodes.each(function(d, i) {
-        const group = d3.select(this);
-        const r = d.r;
-        // Пропорционально размеру пузыря
-        const strokeWidth = Math.max(0.7, r * 0.05);
-        const oversize = 1.35;
-        const size = r * 2 * oversize;
-        const url = d.data.change >= 0 ? '/static/green_bubble.png' : '/static/red_bubble.png';
-        const clipId = `clip-${i}`;
+      nodes.each(function(d,i){
+        const g = d3.select(this), r = d.r;
+        const stroke = Math.max(1, r*0.05);
+        const size   = r*2*1.07; // +7%
+        const clipId = 'c'+i;
+        defs.append('clipPath').attr('id',clipId)
+          .append('circle').attr('r',r);
 
-        defs.append('clipPath').attr('id', clipId)
-          .append('circle').attr('r', r);
-
-        group.append('image')
-          .attr('href', url)
-          .attr('x', -size / 2)
-          .attr('y', -size / 2)
-          .attr('width', size)
-          .attr('height', size)
-          .attr('preserveAspectRatio', 'xMidYMid slice')
+        g.append('image')
+          .attr('href', d.data.img_src)
+          .attr('x', -size/2).attr('y', -size/2)
+          .attr('width', size).attr('height', size)
+          .attr('preserveAspectRatio','xMidYMid slice')
           .attr('clip-path', `url(#${clipId})`);
 
-        group.append('circle')
-          .attr('r', r)
-          .attr('fill', 'none')
-          .attr('stroke', d.data.change >= 0 ? '#3cb371' : '#dc143c')
-          .attr('stroke-width', strokeWidth);
+        g.append('circle')
+          .attr('r',r).attr('fill','none')
+          .attr('stroke', d.data.change>=0? '#3cb371':'#dc143c')
+          .attr('stroke-width', stroke);
       });
 
-      nodes.append('text').attr('class', 'bubble-text')
-        .each(function(d) {
-          const group = d3.select(this);
-          const lines = [d.data.name, d.data.change.toFixed(2) + '%'];
-          let fontSize = d.r * 0.3;
-          group.style('font-size', fontSize + 'px');
-          group.selectAll('tspan').data(lines).join('tspan')
-            .attr('x', 0)
-            .attr('dy', (ln, i) => i * 1.2 + 'em')
-            .text(ln => ln);
-
-          let bbox = group.node().getBBox();
-          while ((bbox.width > d.r * 1.8 || bbox.height > d.r * 1.8) && fontSize > 6) {
-            fontSize -= 1;
-            group.style('font-size', fontSize + 'px');
-            bbox = group.node().getBBox();
+      nodes.append('text').attr('class','bubble-text')
+        .each(function(d){
+          const g = d3.select(this),
+                lines = [d.data.name, d.data.change.toFixed(2)+'%'];
+          let fs = d.r*0.3; g.style('font-size',fs+'px');
+          g.selectAll('tspan').data(lines).join('tspan')
+            .attr('x',0).attr('dy',(t,i)=>i*1.2+'em').text(t=>t);
+          let bb = this.getBBox();
+          while((bb.width>d.r*1.8||bb.height>d.r*1.8)&&fs>6){
+            fs-=1; g.style('font-size',fs+'px'); bb=this.getBBox();
           }
-          const shiftY = -((bbox.height - parseFloat(group.style('font-size'))) / 2);
-          group.attr('transform', `translate(0, ${shiftY})`);
+          const shiftY = -((bb.height - fs)/2);
+          g.attr('transform',`translate(0,${shiftY})`);
         });
     }
 
