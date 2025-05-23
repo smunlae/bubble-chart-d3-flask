@@ -16,69 +16,73 @@
   <script>
     async function loadData() {
       const resp = await fetch('/data');
-      const items = await resp.json();
-      // Ожидаем объекты {name, change:number, img_src}
-      return items;
+      return await resp.json();
     }
 
     async function drawChart() {
       const data = await loadData();
-      const svg = d3.select('#chart'),
-            width = 800, height = 600;
-
-      // контейнер и зум
+      const svg = d3.select('#chart'), width=800, height=600;
       const container = svg.append('g');
-      svg.call(d3.zoom().scaleExtent([0.5,5])
-        .on('zoom', ({transform}) => container.attr('transform', transform))
-      );
-
+      svg.call(d3.zoom().scaleExtent([0.5,5]).on('zoom', ({transform})=>container.attr('transform', transform)));
       const defs = container.append('defs');
-      const root = d3.pack().size([width,height]).padding(8)(
-        d3.hierarchy({children:data}).sum(d => Math.abs(d.change)*2)
-      );
-
-      const nodes = container.selectAll('g.node')
-        .data(root.leaves()).join('g')
-          .attr('class','node')
-          .attr('transform', d=>`translate(${d.x},${d.y})`);
+      const root = d3.pack().size([width,height]).padding(8)(d3.hierarchy({children:data}).sum(d=>Math.abs(d.change)*2));
+      const nodes = container.selectAll('g.node').data(root.leaves()).join('g').attr('class','node').attr('transform', d=>`translate(${d.x},${d.y})`);
 
       nodes.each(function(d,i){
         const g = d3.select(this), r = d.r;
-        const stroke = Math.max(1, r*0.05);
-        const size   = r*2*1.07; // +7%
-        const clipId = 'c'+i;
-        defs.append('clipPath').attr('id',clipId)
-          .append('circle').attr('r',r);
+        const strokeWidth = Math.max(1, r*0.05);
+        // ClipPath for all images
+        const clipId = `clip-${i}`;
+        defs.append('clipPath').attr('id', clipId).append('circle').attr('r', r);
 
+        // Background bubble image (green or red) covering entire circle, clipped
+        const bgSize = r*3 + strokeWidth*3;
         g.append('image')
-          .attr('href', d.data.img_src)
-          .attr('x', -size/2).attr('y', -size/2)
-          .attr('width', size).attr('height', size)
-          .attr('preserveAspectRatio','xMidYMid slice')
+          .attr('href', d.data.change>=0 ? '/static/green_bubble.png' : '/static/red_bubble.png')
+          .attr('x', -bgSize/2)
+          .attr('y', -bgSize/2)
+          .attr('width', bgSize)
+          .attr('height', bgSize)
+          .attr('preserveAspectRatio', 'xMidYMid slice')
           .attr('clip-path', `url(#${clipId})`);
 
+        // Gift icon under text, clipped inside circle
+        const imgScale = 1.07/2;
+        const size = r*2*imgScale;
+        const imgY = -size*0.85;
+        g.append('image')
+          .attr('href', d.data.img_src)
+          .attr('x', -size/2)
+          .attr('y', imgY)
+          .attr('width', size)
+          .attr('height', size)
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .attr('clip-path', `url(#${clipId})`);
+
+        // Stroke circle
         g.append('circle')
-          .attr('r',r).attr('fill','none')
-          .attr('stroke', d.data.change>=0? '#3cb371':'#dc143c')
-          .attr('stroke-width', stroke);
+          .attr('r', r)
+          .attr('fill', 'none')
+          .attr('stroke', d.data.change>=0?'#3cb371':'#dc143c')
+          .attr('stroke-width', strokeWidth);
+
+        // Text
+        const txt = g.append('text').attr('class', 'bubble-text');
+        const lines = [d.data.name, d.data.change.toFixed(2) + '%'];
+        let fs = r*0.25;
+        txt.style('font-size', fs+'px');
+        txt.selectAll('tspan').data(lines).join('tspan')
+          .attr('x',0)
+          .attr('dy',(l,ii)=>ii*1.2+'em')
+          .text(l=>l);
+        let bb = txt.node().getBBox();
+        while((bb.width > r*1.8 || bb.height > r*1.8) && fs > 6) {
+          fs--; txt.style('font-size', fs+'px'); bb = txt.node().getBBox();
+        }
+        const shiftY = -((bb.height - fs)/2) + r*0.5;
+        txt.attr('transform', `translate(0, ${shiftY})`);
       });
-
-      nodes.append('text').attr('class','bubble-text')
-        .each(function(d){
-          const g = d3.select(this),
-                lines = [d.data.name, d.data.change.toFixed(2)+'%'];
-          let fs = d.r*0.3; g.style('font-size',fs+'px');
-          g.selectAll('tspan').data(lines).join('tspan')
-            .attr('x',0).attr('dy',(t,i)=>i*1.2+'em').text(t=>t);
-          let bb = this.getBBox();
-          while((bb.width>d.r*1.8||bb.height>d.r*1.8)&&fs>6){
-            fs-=1; g.style('font-size',fs+'px'); bb=this.getBBox();
-          }
-          const shiftY = -((bb.height - fs)/2);
-          g.attr('transform',`translate(0,${shiftY})`);
-        });
     }
-
     drawChart();
   </script>
 </body>
